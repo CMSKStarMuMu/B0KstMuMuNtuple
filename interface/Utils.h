@@ -131,8 +131,6 @@ class Utils
 
  private:
 
-  TF1* KstMassShape;
-
   std::vector<std::string> TrigTable;
 
   double ProbThreshold;

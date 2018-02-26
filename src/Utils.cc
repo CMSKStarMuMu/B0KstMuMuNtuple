@@ -49,15 +49,6 @@ Utils::Utils (bool rightFlavorTag)
   // if (F-test < ProbThreshold) --> accept the null hypothesis
   // if (F-test > ProbThreshold) --> reject the null hypothesis
   scrambleFraction = 0.0; // Fraction of events with random CP-tagging
-  KstMassShape = new TF1("KstMassShape",
-			 "2*sqrt(2)*[0]*[1]* sqrt([0]*[0] * ([0]*[0] + [1]*[1])) / (TMath::Pi()*sqrt([0]*[0] + sqrt([0]*[0] * ([0]*[0] + [1]*[1])))) / ((x*x - [0]*[0]) * (x*x - [0]*[0]) + [0]*[0]*[1]*[1])",
-			 0.0,kstMass*2.);
-  // Breit-Wigner distribution:
-  // [0]: mass of the resonance
-  // [1]: width of the resonance
-  KstMassShape->SetParameter(0,kstMass);
-  KstMassShape->SetParameter(1,kstSigma);
-  KstMassShape->SetParNames("Mean","Width");
 
   // Define whether to compute the efficiency with good-tagged or mis-tagged events
   RIGHTflavorTAG = rightFlavorTag;
@@ -91,12 +82,6 @@ Utils::Utils (bool rightFlavorTag)
   std::cout << "B0ToKstMuMu: "               << B0ToKstMuMu << std::endl;
   std::cout << "B0ToJPsiKst: "               << B0ToJPsiKst << std::endl;
   std::cout << "B0ToPsi2SKst: "              << B0ToPsi2SKst << std::endl;
-  std::cout << "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@" << std::endl;
-  std::cout << "@@@ Consider to double-check values for: @@@" << std::endl;
-  std::cout << "- Utils::AddConstraintThetaL" << std::endl;
-  std::cout << "- Utils::AddConstraintThetaKThetaL" << std::endl;
-  std::cout << "- Utils::AddConstraintThetaKThetaLPhi" << std::endl;
-  std::cout << "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@" << std::endl;
 }
 
 double Utils::computeInvMass (double Px1,
