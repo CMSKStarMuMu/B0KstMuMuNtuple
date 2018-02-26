@@ -13,7 +13,7 @@ scram b -j 6
 mkdir B0KstarMM  
 cd B0KstarMM  
 git clone git@github.com:CMSKStarMuMu/B0KstMuMu.git .  
-cd B0KstMuMu
+cd B0KstMuMu  
 scram b -j 6  
 
 
