@@ -85,6 +85,7 @@ class B0KstMuMu : public edm::EDAnalyzer
                            float, float, float );
 
   std::pair<double,double> pionImpactParameter(reco::TransientTrack , reco::Vertex    );
+  int findPV(int , const reco::VertexCollection* );
 
  private:
 
@@ -146,7 +147,7 @@ class B0KstMuMu : public edm::EDAnalyzer
   double MAXB0PREMASS;
 
   bool printMsg;
-  
+      
   TTree* theTree;
   B0KstMuMuTreeContent* NTuple;
   Utils* Utility;

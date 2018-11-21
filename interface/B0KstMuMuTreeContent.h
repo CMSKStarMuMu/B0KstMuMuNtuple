@@ -88,6 +88,7 @@ class B0KstMuMuTreeContent
   // # K*0 Mass #
   // ############
   std::vector<double>       *kstMass, *kstMassE, *kstBarMass, *kstBarMassE, *kstPx, *kstPy, *kstPz;
+  std::vector<double>       *kstPxxE, *kstPyyE, *kstPzzE, *kstPxyE, *kstPxzE, *kstPyzE;
 
   // ###########
   // # K*0 Vtx #
@@ -119,7 +120,7 @@ class B0KstMuMuTreeContent
   std::vector<std::string>  *mumCat;
   std::vector<int>          *mumNPixHits, *mumNPixLayers, *mumNTrkHits, *mumNTrkLayers, *mumNMuonHits, *mumNMatchStation;
   std::vector<std::string>  *mumTrig;
-  std::vector<std::vector<float>> *mumIso;
+  std::vector<std::vector<float>> *mumIso, *mumIsoPt, *mumIsoMom, *mumIsodR;
 
   // #######
   // # mu+ #
@@ -133,7 +134,7 @@ class B0KstMuMuTreeContent
   std::vector<std::string>  *mupCat;
   std::vector<int>          *mupNPixHits, *mupNPixLayers, *mupNTrkHits, *mupNTrkLayers, *mupNMuonHits, *mupNMatchStation;
   std::vector<std::string>  *mupTrig;
-  std::vector<std::vector<float>> *mupIso;
+  std::vector<std::vector<float>> *mupIso, *mupIsoPt, *mupIsoMom, *mupIsodR;
 
   // ##############
   // # K*0 track- #
@@ -141,13 +142,14 @@ class B0KstMuMuTreeContent
 //   std::vector<int>         *kstTrkmHighPurity;
   std::vector<bool>         *kstTrkmHighPurity;
   std::vector<double>       *kstTrkmCL, *kstTrkmNormChi2, *kstTrkmPx, *kstTrkmPy, *kstTrkmPz;
+  std::vector<double>       *kstTrkmPxxE, *kstTrkmPyyE, *kstTrkmPzzE, *kstTrkmPxyE, *kstTrkmPxzE, *kstTrkmPyzE;
   std::vector<double>       *kstTrkmDCAVtx, *kstTrkmDCAVtxE, *kstTrkmDCABS, *kstTrkmDCABSE, *kstTrkmFracHits;
   std::vector<double>       *kstTrkmdxyVtx, *kstTrkmdzVtx, *kstTrkmMinIP2D, *kstTrkmMinIP2DE, *kstTrkmMinIP, *kstTrkmMinIPE;
   std::vector<double>       *kstTrkmDeltaRwithMC;
   std::vector<int>          *kstTrkmNPixHits, *kstTrkmNPixLayers, *kstTrkmNTrkHits, *kstTrkmNTrkLayers;
   std::vector<std::string>  *kstTrkmMuMatch;
   std::vector<std::string>  *kstTrkmTrig;
-  std::vector<std::vector<float>> *kstTrkmIso;
+  std::vector<std::vector<float>> *kstTrkmIso, *kstTrkmIsoPt, *kstTrkmIsoMom, *kstTrkmIsodR;
 
   // ##############
   // # K*0 track+ #
@@ -155,13 +157,14 @@ class B0KstMuMuTreeContent
 //   std::vector<int>         *kstTrkpHighPurity;
   std::vector<bool>         *kstTrkpHighPurity;
   std::vector<double>       *kstTrkpCL, *kstTrkpNormChi2, *kstTrkpPx, *kstTrkpPy, *kstTrkpPz;
+  std::vector<double>       *kstTrkpPxxE, *kstTrkpPyyE, *kstTrkpPzzE, *kstTrkpPxyE, *kstTrkpPxzE, *kstTrkpPyzE;
   std::vector<double>       *kstTrkpDCAVtx, *kstTrkpDCAVtxE, *kstTrkpDCABS, *kstTrkpDCABSE, *kstTrkpFracHits;
   std::vector<double>       *kstTrkpdxyVtx, *kstTrkpdzVtx, *kstTrkpMinIP2D, *kstTrkpMinIP2DE, *kstTrkpMinIP, *kstTrkpMinIPE;
   std::vector<double>       *kstTrkpDeltaRwithMC;
   std::vector<int>          *kstTrkpNPixHits, *kstTrkpNPixLayers, *kstTrkpNTrkHits, *kstTrkpNTrkLayers;
   std::vector<std::string>  *kstTrkpMuMatch;
   std::vector<std::string>  *kstTrkpTrig;
-  std::vector<std::vector<float>> *kstTrkpIso;
+  std::vector<std::vector<float>> *kstTrkpIso, *kstTrkpIsoPt, *kstTrkpIsoMom, *kstTrkpIsodR;
 
   // #########################
   // # Generated Observables #
