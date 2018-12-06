@@ -83,7 +83,7 @@ bkg_list = [
 
 for isample in range(11):
 
-    tag = '_forPlots_%s'%isample
+    tag = 'Nov21_%s'%isample
 
 #####################################
 #####   FEATURES AND BRANCHES   #####
@@ -255,11 +255,6 @@ for isample in range(11):
     sig['themass']  = sig.bMass*sig.tagB0 + sig.bBarMass*(1-sig.tagB0)
     branches.append('themass')
     
-    bkg.hist(column='themass',bins=400)
-    plt.savefig('mass_bkg.pdf')
-    sig.hist(column='themass',bins=400)   
-    plt.savefig('mass_sig.pdf')
-    
     bkg['m_weight']  = add_m_weights_bkg(bkg.themass)
     sig['m_weight']  = add_m_weights_sig(sig.themass)
 
@@ -322,7 +317,7 @@ for isample in range(11):
         sample_weight         = train['normfactor'],
     )
     
-    joblib.dump(clf, 'results/classifier_%s.pkl' %(tag), compress=True)
+    joblib.dump(clf, 'classifiers/classifier_%s.pkl' %(tag), compress=True)
     
     ####################################################
     # #####   PREDICT ON THE TEST UNBIAS SAMPLE    #####
@@ -351,16 +346,16 @@ for isample in range(11):
     
     # ## draw ROC         
     fpr, tpr, threshold = roc_curve(test.target, (pred * test.pass_preselection) ) ### !! changed from test unbias
-    plt.plot(fpr, tpr, label='BDT', color='r', label='ROC test')
+    plt.plot(fpr, tpr, color='r', label='ROC test')
     
     pred2 = clf.predict_proba(train[features])[:, 1]
     fpr2, tpr2, sara2 = roc_curve(train.target, pred2)
-    plt.plot(fpr2, tpr2, label='BDT', color='b', label='ROC train')
+    plt.plot(fpr2, tpr2, color='b', label='ROC train')
 
     plt.xscale('log')
     plt.grid()
     
-    roc_file = open('roc_%s.pck' %(tag), 'w+')
+    roc_file = open('classifiers/plots/roc_%s.pck' %(tag), 'w+')
     pickle.dump((tpr, fpr), roc_file)
     roc_file.close()
     
@@ -368,7 +363,7 @@ for isample in range(11):
     plt.grid()
     plt.title('ROC')
     plt.tight_layout()
-    plt.savefig('results/roc_train_test_%s.pdf' %(tag))
+    plt.savefig('classifiers/plots/roc_train_test_%s.pdf' %(tag))
     plt.clf()
 
     ### add plot of BDT vs tpr     
@@ -380,10 +375,10 @@ for isample in range(11):
     plt.tight_layout()
     plt.xlabel('BDT output')
     plt.ylabel('True Positive Rate')
-    plt.savefig('results/turn_on_%s.pdf' %(tag))
+    plt.savefig('classifiers/plots/turn_on_%s.pdf' %(tag))
     plt.clf()
     
-    roc_file = open('results/turnon_%s.pck' %(tag), 'w+')
+    roc_file = open('classifiers/plots/turnon_%s.pck' %(tag), 'w+')
     pickle.dump((threshold, tpr), roc_file)
     roc_file.close()
     
@@ -397,10 +392,10 @@ for isample in range(11):
     plt.yscale('log')
     
     plt.tight_layout()
-    plt.savefig('results/rate_%s.pdf' %(tag))
+    plt.savefig('classifiers/plots/rate_%s.pdf' %(tag))
     plt.clf()
     
-    roc_file = open('results/rate_%s.pck' %(tag), 'w+')
+    roc_file = open('classifiers/plots/rate_%s.pck' %(tag), 'w+')
     pickle.dump((threshold, fpr), roc_file)
     roc_file.close()
     
@@ -489,14 +484,14 @@ for isample in range(11):
     ks_sig = ks_2samp(train_sig, test_sig)
     ks_bkg = ks_2samp(train_bkg, test_bkg)
     plt.suptitle('KS p-value: sig = %.3f%s - bkg = %.2f%s' %(ks_sig.pvalue * 100., '%', ks_bkg.pvalue * 100., '%'))
-    plt.savefig('results/overtrain_%s.pdf' %(tag))
+    plt.savefig('classifiers/plots/overtrain_%s.pdf' %(tag))
     
     ###################################
     #####   FEATURE IMPORTANCE    #####
     ###################################
     plot_importance(clf)
     plt.tight_layout()
-    plt.savefig('results/feat_importance_%s.pdf' %(tag))
+    plt.savefig('classifiers/plots/feat_importance_%s.pdf' %(tag))
     
     
     ###################################
@@ -523,7 +518,7 @@ for isample in range(11):
     
     plt.legend(loc='best')
     plt.tight_layout()
-    plt.savefig('results/auc_score_%s.pdf' %(tag))
+    plt.savefig('classifiers/plots/auc_score_%s.pdf' %(tag))
     
     
     
@@ -564,7 +559,7 @@ for isample in range(11):
     cbar.ax.tick_params(labelsize=5)
     
     plt.show()
-    plt.savefig('results/bkg_correlation_%s.pdf' %(tag))
+    plt.savefig('classifiers/plots/bkg_correlation_%s.pdf' %(tag))
     
     plt.close()
     
