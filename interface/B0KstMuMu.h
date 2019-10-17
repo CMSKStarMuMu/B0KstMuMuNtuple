@@ -33,6 +33,8 @@
 #include "DataFormats/VertexReco/interface/Vertex.h"
 #include "DataFormats/VertexReco/interface/VertexFwd.h"
 
+#include "L1Trigger/L1TGlobal/interface/L1TGlobalUtil.h"
+
 #include "SimDataFormats/GeneratorProducts/interface/GenFilterInfo.h"
 #include "SimDataFormats/GeneratorProducts/interface/HepMCProduct.h"
 #include "SimDataFormats/PileupSummaryInfo/interface/PileupSummaryInfo.h"
@@ -120,6 +122,10 @@ class B0KstMuMu : public edm::EDAnalyzer
   unsigned int doGenReco_;
 
   std::vector<std::string> TrigTable_;
+  std::vector<std::string> l1Table_;
+
+  edm::EDGetTokenT<GlobalAlgBlkBxCollection> l1results_;
+  edm::EDGetTokenT<GlobalExtBlkBxCollection> l1ext_;
 
   // ####################
   // # HLT-trigger cuts #
@@ -147,10 +153,11 @@ class B0KstMuMu : public edm::EDAnalyzer
   double MAXB0PREMASS;
 
   bool printMsg;
-      
+  
   TTree* theTree;
   B0KstMuMuTreeContent* NTuple;
   Utils* Utility;
+  l1t::L1TGlobalUtil *fGtUtil;
 };
 
 #endif

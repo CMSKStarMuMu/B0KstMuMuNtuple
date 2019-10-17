@@ -45,43 +45,11 @@ Utils::Utils (bool rightFlavorTag)
 
   PI = 3.141592653589793;
 
-  ProbThreshold = 0.0; // Confidence Level for accepting the null hypothesis: "the two mass hypothesis are statistically indistinguishable"
-  // if (F-test < ProbThreshold) --> accept the null hypothesis
-  // if (F-test > ProbThreshold) --> reject the null hypothesis
-  scrambleFraction = 0.0; // Fraction of events with random CP-tagging
-
-  // Define whether to compute the efficiency with good-tagged or mis-tagged events
-  RIGHTflavorTAG = rightFlavorTag;
-
-  // ###############################################
-  // # ===> Define codes to identify MC type <===  #
-  // #                                             #
-  // # 1 = B0    --> K*0(K+pi-) mu+mu-             #
-  // # 2 = B0bar --> K*0bar(K-pi+) mu+mu-          #
-  // #                                             #
-  // # 3 = B0    --> K*0(K+pi-) J/psi(mu+mu-)      #
-  // # 4 = B0bar --> K*0bar(K-pi+) J/psi(mu+mu-)   #
-  // #                                             #
-  // # 5 = B0    --> K*0(K-pi+) psi(2S)(mu+mu-)    #
-  // # 6 = B0bar --> K*0bar(K-pi+) psi(2S)(mu+mu-) #
-  // ###############################################
   B0ToKstMuMu  = 1;
   B0ToJPsiKst  = 3;
   B0ToPsi2SKst = 5;
 
   // ################################
-  // # Print out internal variables #
-  // ################################
-  std::cout << "\n@@@@@@ Utils class settings : private @@@@@@" << std::endl;
-  std::cout << "Analysis environment variable: " << ANALYPATH << std::endl;
-  std::cout << "ProbThreshold: "             << ProbThreshold << std::endl;
-  std::cout << "scrambleFraction: "          << scrambleFraction << std::endl;
-
-  std::cout << "\n@@@@@@ Utils class settings : public  @@@@@@" << std::endl;
-  std::cout << "RIGHTflavorTAG: "            << RIGHTflavorTAG << std::endl;
-  std::cout << "B0ToKstMuMu: "               << B0ToKstMuMu << std::endl;
-  std::cout << "B0ToJPsiKst: "               << B0ToJPsiKst << std::endl;
-  std::cout << "B0ToPsi2SKst: "              << B0ToPsi2SKst << std::endl;
 }
 
 double Utils::computeInvMass (double Px1,
@@ -226,4 +194,8 @@ void Utils::computeCosAlpha (double Vx,
       *cosAlphaErr = 0.;
     }
 }
+
+
+
+
 

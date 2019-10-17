@@ -96,7 +96,7 @@ class Utils
 			double* cosAlpha,
 			double* cosAlphaErr);
 
-  unsigned int IsInTriggerTable     (B0KstMuMuTreeContent* NTupleIn, double* HLTCutVar1, double* HLTCutVar2, int index = 0, double evtFrac = -1.0);
+
   double muonMass;
   double pionMass;
   double kaonMass;
@@ -122,20 +122,9 @@ class Utils
 
   double PI;
 
-  bool RIGHTflavorTAG;
-
   int B0ToKstMuMu;
   int B0ToJPsiKst;
   int B0ToPsi2SKst;
-
-
- private:
-
-  std::vector<std::string> TrigTable;
-
-  double ProbThreshold;
-  double scrambleFraction;
-
 
 };
 

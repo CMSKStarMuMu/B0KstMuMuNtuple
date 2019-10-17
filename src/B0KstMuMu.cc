@@ -21,6 +21,9 @@
 #include "FWCore/ServiceRegistry/interface/Service.h"
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
 
+#include "CondFormats/DataRecord/interface/L1TUtmTriggerMenuRcd.h"
+#include "L1Trigger/GlobalTriggerAnalyzer/interface/L1GtUtils.h"
+
 #include "RecoVertex/AdaptiveVertexFit/interface/AdaptiveVertexFitter.h"
 #include "RecoVertex/KinematicFit/interface/KinematicConstrainedVertexFitter.h"
 #include "RecoVertex/KinematicFit/interface/TwoTrackMassKinematicConstraint.h"
@@ -87,7 +90,10 @@ B0KstMuMu::B0KstMuMu (const edm::ParameterSet& iConfig) :
 
   doGenReco_         ( iConfig.getUntrackedParameter<unsigned int>("doGenReco",       1) ),
   TrigTable_         ( iConfig.getParameter<std::vector<std::string> >("TriggerNames")),   
+  l1Table_           ( iConfig.getParameter<std::vector<std::string> >("L1Names")),   
 
+  l1results_      (consumes<GlobalAlgBlkBxCollection>  (iConfig.getParameter<edm::InputTag>("l1results"))),
+  l1ext_          (consumes<GlobalExtBlkBxCollection>  (iConfig.getParameter<edm::InputTag>("l1results"))),
   // # Load HLT-trigger cuts #
   CLMUMUVTX          ( iConfig.getUntrackedParameter<double>("MuMuVtxCL")      ),
   LSMUMUBS           ( iConfig.getUntrackedParameter<double>("MuMuLsBS")       ),
@@ -125,6 +131,7 @@ B0KstMuMu::B0KstMuMu (const edm::ParameterSet& iConfig) :
   NTuple->ClearNTuple();
 
   Utility = new Utils();
+  fGtUtil = new l1t::L1TGlobalUtil(iConfig, consumesCollector(), *this, iConfig.getParameter<edm::InputTag>("l1results"), iConfig.getParameter<edm::InputTag>("l1results"));
 
 }
 
@@ -166,6 +173,12 @@ void B0KstMuMu::analyze (const edm::Event& iEvent, const edm::EventSetup& iSetup
   double cosAlphaVtxErr;
   double cosAlphaBS;
   double cosAlphaBSErr;
+  double bMcosAlphaBS;
+  double bMcosAlphaBSErr;
+  double bPcosAlphaBS;
+  double bPcosAlphaBSErr;
+  double bMinusVtxCL;
+  double bPlusVtxCL;
 
   double deltaEtaPhi;
   double pT;
@@ -213,10 +226,14 @@ void B0KstMuMu::analyze (const edm::Event& iEvent, const edm::EventSetup& iSetup
 
   std::vector<float> mum_isovec, mup_isovec, trkm_isovec, trkp_isovec; 
   std::vector<float> mum_isopts, mup_isopts, trkm_isopts, trkp_isopts; 
-  std::vector<float> mum_isomom, mup_isomom, trkm_isomom, trkp_isomom; 
   std::vector<float> mum_isodr, mup_isodr, trkm_isodr, trkp_isodr; 
 
   if (printMsg) std::cout << "\n\n" << __LINE__ << " : @@@@@@ Start Analyzer @@@@@@" << std::endl;
+
+  NTuple->runN   = iEvent.id().run();
+  NTuple->ls     = (int)iEvent.id().luminosityBlock();
+  NTuple->eventN = (unsigned long int)iEvent.id().event();
+  
 
   // Get Gen-Particles
   edm::Handle<reco::GenParticleCollection> genParticles;
@@ -279,6 +296,34 @@ void B0KstMuMu::analyze (const edm::Event& iEvent, const edm::EventSetup& iSetup
 	}
   }
 
+    //// L1 information
+    edm::Handle<GlobalAlgBlkBxCollection> l1results;
+    iEvent.getByToken(l1results_,      l1results);
+
+    if (l1results.isValid()) {  
+    
+      fGtUtil->retrieveL1(iEvent, iSetup, l1results_);
+
+//       const std::vector<std::pair<std::string, bool> > initialDecisions = fGtUtil->decisionsInitial();
+//       const std::vector<std::pair<std::string, bool> > intermDecisions = fGtUtil->decisionsInterm();
+      const std::vector<std::pair<std::string, bool> > finalDecisions = fGtUtil->decisionsFinal();
+      const std::vector<std::pair<std::string, int> >  prescales = fGtUtil->prescales();
+
+      for (unsigned int i = 0; i < finalDecisions.size(); ++i) {
+        std::string name = (finalDecisions.at(i)).first;
+        if (name == "NULL") continue;
+        for (unsigned int it = 0; it < l1Table_.size(); it++){
+          if (name.compare(l1Table_[it]) == 0){
+            bool resultFin = (finalDecisions.at(i)).second;
+            if (resultFin){
+                NTuple->L1Table    ->push_back( name );
+                NTuple->L1Prescales->push_back( (prescales.at(i)).second );
+            }
+          }
+        }
+      }
+	}  
+
 
   if ((doGenReco_ == 1) || (doGenReco_ == 2))
   {
@@ -291,6 +336,7 @@ void B0KstMuMu::analyze (const edm::Event& iEvent, const edm::EventSetup& iSetup
     edm::Handle<reco::VertexCollection> recVtx;
     iEvent.getByToken(vtxSampleToken_, recVtx);
     if (recVtx->empty()) return; // skip the event if no PV found
+//     const reco::VertexCollection recVtxColl  = *(recVtx.product())  ;    
     reco::Vertex bestVtx;
     reco::Vertex bestVtxReFit;
     for (std::vector<reco::Vertex>::const_iterator iVertex = recVtx->begin(); iVertex != recVtx->end(); iVertex++) { 
@@ -314,13 +360,15 @@ void B0KstMuMu::analyze (const edm::Event& iEvent, const edm::EventSetup& iSetup
 	{
 	    bool skip = false;
 	    
+// 	    if (! iMuonM->isSoftMuon( bestVtx ) ) continue;
+
         // ########################
 	    // # Check mu- kinematics #
 	    // ########################
 	    muTrackm = iMuonM->innerTrack();
 	    if ((muTrackm.isNull() == true) || (muTrackm->charge() != -1)) continue;
         if (muTrackm->hitPattern().trackerLayersWithMeasurement() < 6) continue;        
-        if (muTrackm->hitPattern().pixelLayersWithMeasurement()   < 1) continue;        
+        if (muTrackm->hitPattern().pixelLayersWithMeasurement()  < 1) continue;        
  
         // #########################
 	    // # Muon- pT and eta cuts #
@@ -358,6 +406,7 @@ void B0KstMuMu::analyze (const edm::Event& iEvent, const edm::EventSetup& iSetup
 	    // ###########
 	    for (std::vector<pat::Muon>::const_iterator iMuonP = thePATMuonHandle->begin(); iMuonP != thePATMuonHandle->end(); iMuonP++)
 		{
+// 	      if (! iMuonP->isSoftMuon( bestVtx ) ) continue;
 		  // ########################
 		  // # Check mu+ kinematics #
 		  // ########################
@@ -537,7 +586,6 @@ void B0KstMuMu::analyze (const edm::Event& iEvent, const edm::EventSetup& iSetup
 		      // # Check Track- kinematics #
 		      // ###########################
 		      Trackm = iTrackM->track();
-// 		      if ((Trackm.isNull() == true) ) continue;
 		      if ((Trackm.isNull() == true) || (Trackm->charge() != -1)) continue;
               if (! Trackm->quality(reco::Track::highPurity)) continue;
 
@@ -580,7 +628,6 @@ void B0KstMuMu::analyze (const edm::Event& iEvent, const edm::EventSetup& iSetup
 			    // # Check Track+ kinematics #
 			    // ###########################
 			    Trackp = iTrackP->track();
-// 			    if ((Trackp.isNull() == true) ) continue;
 			    if ((Trackp.isNull() == true) || (Trackp->charge() != 1)) continue;
                 if (! Trackp->quality(reco::Track::highPurity)) continue;
 
@@ -699,7 +746,7 @@ void B0KstMuMu::analyze (const edm::Event& iEvent, const edm::EventSetup& iSetup
 			    std::vector<RefCountedKinematicParticle> kstBarParticles;
 			    kstBarParticles.push_back(partFactory.particle(TrackmTT,kaonMass,chi,ndf,kaonMassErr));
 			    kstBarParticles.push_back(partFactory.particle(TrackpTT,pionMass,chi,ndf,pionMassErr));
-			    
+
 			    RefCountedKinematicTree kstBarVertexFitTree = PartVtxFitter.fit(kstBarParticles);
 			    if (kstBarVertexFitTree->isValid() == false)
 			      {
@@ -1131,7 +1178,68 @@ void B0KstMuMu::analyze (const edm::Event& iEvent, const edm::EventSetup& iSetup
   
 			  			      (Bmomentum2 * Bmomentum2)));
   
+			    // #################################################
+			    // # Try to fit 2muon + 1 trk vertex (K mass hyp) ##
+			    // #################################################
+			    chi = 0.;
+			    ndf = 0.;
+                bMinusVtxCL  = -99;
+	            bMcosAlphaBS = -99;
+			    std::vector<RefCountedKinematicParticle> bMinusParticles;
+			    bMinusParticles.push_back(partFactory.particle(muTrackmTT,muonMass,chi,ndf,muonMassErr));
+			    bMinusParticles.push_back(partFactory.particle(muTrackpTT,muonMass,chi,ndf,muonMassErr));
+			    bMinusParticles.push_back(partFactory.particle(TrackmTT  ,kaonMass,chi,ndf,kaonMassErr));
   
+			    RefCountedKinematicTree bMinusVertexFitTree = PartVtxFitter.fit(bMinusParticles);
+			    if (bMinusVertexFitTree->isValid() == true)
+			    {
+    			    bMinusVertexFitTree->movePointerToTheTop();
+	    		    RefCountedKinematicParticle bM_KP = bMinusVertexFitTree->currentParticle();
+    			    RefCountedKinematicVertex bM_KV   = bMinusVertexFitTree->currentDecayVertex();
+			    
+			        if (bM_KV->vertexIsValid() == true)
+  		            {
+                        bMinusVtxCL = TMath::Prob(static_cast<double>(bM_KV->chiSquared()), static_cast<int>(rint(bM_KV->degreesOfFreedom())));
+			            Utility->computeCosAlpha (bM_KP->currentState().globalMomentum().x()     , bM_KP->currentState().globalMomentum().y()     , 0.0,
+			          			                  bM_KV->position().x() - beamSpot.position().x(), bM_KV->position().y() - beamSpot.position().y(), 0.0,
+			          			                  bM_KP->currentState().kinematicParametersError().matrix()(3,3), bM_KP->currentState().kinematicParametersError().matrix()(4,4), 0.0,
+			          			                  bM_KP->currentState().kinematicParametersError().matrix()(3,4), 0.0                                                           , 0.0,
+			          			                  bM_KV->error().cxx() + beamSpot.covariance()(0,0), bM_KV->error().cyy() + beamSpot.covariance()(1,1), 0.0,
+			          			                  bM_KV->error().matrix()(0,1) + beamSpot.covariance()(0,1), 0.0, 0.0,
+			          			                  &bMcosAlphaBS, &bMcosAlphaBSErr);
+			        }
+			    }
+
+			    chi = 0.;
+			    ndf = 0.;
+                bPlusVtxCL   = -99;
+	            bPcosAlphaBS = -99;
+			    std::vector<RefCountedKinematicParticle> bPlusParticles;
+			    bPlusParticles.push_back(partFactory.particle(muTrackmTT,muonMass,chi,ndf,muonMassErr));
+			    bPlusParticles.push_back(partFactory.particle(muTrackpTT,muonMass,chi,ndf,muonMassErr));
+			    bPlusParticles.push_back(partFactory.particle(TrackpTT  ,kaonMass,chi,ndf,kaonMassErr));
+  
+			    RefCountedKinematicTree bPlusVertexFitTree = PartVtxFitter.fit(bPlusParticles);
+			    if (bPlusVertexFitTree->isValid() == true)
+			    {
+    			    bPlusVertexFitTree->movePointerToTheTop();
+	    		    RefCountedKinematicParticle bP_KP = bPlusVertexFitTree->currentParticle();
+    			    RefCountedKinematicVertex bP_KV   = bPlusVertexFitTree->currentDecayVertex();
+			    
+			        if (bP_KV->vertexIsValid() == true)
+  		            {
+                        bPlusVtxCL = TMath::Prob(static_cast<double>(bP_KV->chiSquared()), static_cast<int>(rint(bP_KV->degreesOfFreedom())));
+			            Utility->computeCosAlpha (bP_KP->currentState().globalMomentum().x()     , bP_KP->currentState().globalMomentum().y()     , 0.0,
+			          			                  bP_KV->position().x() - beamSpot.position().x(), bP_KV->position().y() - beamSpot.position().y(), 0.0,
+			          			                  bP_KP->currentState().kinematicParametersError().matrix()(3,3), bP_KP->currentState().kinematicParametersError().matrix()(4,4), 0.0,
+			          			                  bP_KP->currentState().kinematicParametersError().matrix()(3,4), 0.0                                                           , 0.0,
+			          			                  bP_KV->error().cxx() + beamSpot.covariance()(0,0), bP_KV->error().cyy() + beamSpot.covariance()(1,1), 0.0,
+			          			                  bP_KV->error().matrix()(0,1) + beamSpot.covariance()(0,1), 0.0, 0.0,
+			          			                  &bPcosAlphaBS, &bPcosAlphaBSErr);
+			        }
+			    }
+
+
 			    // #######################################
 			    // # @@@ Fill B0-candidate variables @@@ #
 			    // #######################################
@@ -1221,9 +1329,9 @@ void B0KstMuMu::analyze (const edm::Event& iEvent, const edm::EventSetup& iSetup
 			    NTuple->mumuDCA->push_back(mumuDCA);
   
   
-			    // #############
-			    // # Save: mu- #
-			    // #############
+			    //// #############
+			    //// # Save: mu- #
+			    //// #############
 			    NTuple->mumHighPurity->push_back( (int)muTrackm->quality(reco::Track::highPurity));
 			    NTuple->mumCL->push_back(TMath::Prob(muTrackmTT.chi2(), static_cast<int>(rint(muTrackmTT.ndof()))));
 			    NTuple->mumNormChi2->push_back(muTrackm->normalizedChi2());
@@ -1253,11 +1361,13 @@ void B0KstMuMu::analyze (const edm::Event& iEvent, const edm::EventSetup& iSetup
  			    if (iMuonM->isGlobalMuon() == true) NTuple->mumNMuonHits->push_back(iMuonM->globalTrack()->hitPattern().numberOfValidMuonHits());
 			    else NTuple->mumNMuonHits->push_back(0);
 			    NTuple->mumNMatchStation->push_back(iMuonM->numberOfMatchedStations());
+                NTuple->mum_prefit_pt  -> push_back(muTrackm -> pt());
+                NTuple->mum_prefit_eta -> push_back(muTrackm -> eta());
+                NTuple->mum_prefit_phi -> push_back(muTrackm -> phi());
   
-  
-			    // #############
-			    // # Save: mu+ #
-			    // #############
+                // #############
+                // # Save: mu+ #
+                // #############
 			    NTuple->mupHighPurity->push_back( (int) muTrackp->quality(reco::Track::highPurity));
 			    NTuple->mupCL->push_back(TMath::Prob(muTrackpTT.chi2(), static_cast<int>(rint(muTrackpTT.ndof()))));
 			    NTuple->mupNormChi2->push_back(muTrackp->normalizedChi2());
@@ -1287,6 +1397,9 @@ void B0KstMuMu::analyze (const edm::Event& iEvent, const edm::EventSetup& iSetup
 			    if (iMuonP->isGlobalMuon() == true) NTuple->mupNMuonHits->push_back(iMuonP->globalTrack()->hitPattern().numberOfValidMuonHits());
 			    else NTuple->mupNMuonHits->push_back(0);
 			    NTuple->mupNMatchStation->push_back(iMuonP->numberOfMatchedStations());
+                NTuple->mup_prefit_pt  -> push_back(muTrackp -> pt());
+                NTuple->mup_prefit_eta -> push_back(muTrackp -> eta());
+                NTuple->mup_prefit_phi -> push_back(muTrackp -> phi());
   
   
 			    // ################
@@ -1319,6 +1432,10 @@ void B0KstMuMu::analyze (const edm::Event& iEvent, const edm::EventSetup& iSetup
 			    NTuple->kstTrkmdzVtx->push_back(TrackmTT.track().dz(bestVtxReFit.position()));
   
 			    NTuple->kstTrkmMuMatch->push_back(MuMCat);
+                NTuple->kstTrkm_prefit_pt  -> push_back(iTrackM -> pt());
+                NTuple->kstTrkm_prefit_eta -> push_back(iTrackM -> eta());
+                NTuple->kstTrkm_prefit_phi -> push_back(iTrackM -> phi());
+			    
   
 			    // I do NOT include the number of missing outer hits because the hadron might interact
 			    NTuple->kstTrkmNPixHits->push_back(Trackm->hitPattern().numberOfValidPixelHits());
@@ -1355,12 +1472,21 @@ void B0KstMuMu::analyze (const edm::Event& iEvent, const edm::EventSetup& iSetup
 			    NTuple->kstTrkpdzVtx->push_back(TrackpTT.track().dz(bestVtxReFit.position()));
   
 			    NTuple->kstTrkpMuMatch->push_back(MuPCat);
+                NTuple->kstTrkp_prefit_pt  -> push_back(iTrackP -> pt());
+                NTuple->kstTrkp_prefit_eta -> push_back(iTrackP -> eta());
+                NTuple->kstTrkp_prefit_phi -> push_back(iTrackP -> phi());
   
 			    // I do NOT include the number of missing outer hits because the hadron might interact
 			    NTuple->kstTrkpNPixHits  -> push_back(Trackp->hitPattern().numberOfValidPixelHits());
 			    NTuple->kstTrkpNPixLayers-> push_back(Trackp->hitPattern().pixelLayersWithMeasurement());  
 			    NTuple->kstTrkpNTrkHits  -> push_back(Trackp->hitPattern().numberOfValidTrackerHits());
 			    NTuple->kstTrkpNTrkLayers-> push_back(Trackp->hitPattern().trackerLayersWithMeasurement());
+
+			    NTuple->bPlusCosAlphaBS  ->push_back(bPcosAlphaBS);
+			    NTuple->bPlusVtxCL       ->push_back(bPlusVtxCL);
+			    NTuple->bMinusCosAlphaBS ->push_back(bMcosAlphaBS);
+			    NTuple->bMinusVtxCL      ->push_back(bMinusVtxCL);
+  
   
   
 			    // Save trigger matching for the 4 tracks
@@ -1448,7 +1574,6 @@ void B0KstMuMu::analyze (const edm::Event& iEvent, const edm::EventSetup& iSetup
                 chi = 0; ndf = 0;
                 mum_isovec.clear(); mup_isovec.clear(); trkm_isovec.clear(); trkp_isovec.clear();
                 mum_isopts.clear(); mup_isopts.clear(); trkm_isopts.clear(); trkp_isopts.clear();
-                mum_isomom.clear(); mup_isomom.clear(); trkm_isomom.clear(); trkp_isomom.clear();
                 mum_isodr.clear();  mup_isodr.clear();  trkm_isodr.clear();  trkp_isodr.clear();
 
                 float bestVtx_x = bestVtxReFit.x();
@@ -1467,7 +1592,7 @@ void B0KstMuMu::analyze (const edm::Event& iEvent, const edm::EventSetup& iSetup
                   if (  iTrackIso->track()->pt() < 0.8) continue;
                   
                    // requirement that the track is not associated to any PV
-                  if (findPV(trk_index, recVtxColl) == 1 ) continue;
+//                   if (findPV(trk_index, recVtxColl) == 1 ) continue;
                   
                   const reco::TransientTrack TrackIsoTT(iTrackIso->track(), &(*bFieldHandle));
                   
@@ -1489,7 +1614,6 @@ void B0KstMuMu::analyze (const edm::Event& iEvent, const edm::EventSetup& iSetup
                   {
                     if ( ClosestApp.distance() < 0.1 ) {
                       mum_isopts.push_back( iTrackIso->track()->pt() );
-                      mum_isomom.push_back( iTrackIso->track()->p()  );   
                       mum_isodr.push_back ( deltaR(iTrackIso->track() ->eta(), iTrackIso->track()->phi(), refitMumTT.track().eta(), refitMumTT.track().phi() ));   
                     }                 
                   }
@@ -1498,7 +1622,6 @@ void B0KstMuMu::analyze (const edm::Event& iEvent, const edm::EventSetup& iSetup
                   {
                     if ( ClosestApp.distance() < 0.1 ) {
                       mup_isopts.push_back( iTrackIso->track()->pt() );
-                      mup_isomom.push_back( iTrackIso->track()->p()  );   
                       mup_isodr.push_back ( deltaR(iTrackIso->track() ->eta(), iTrackIso->track()->phi(), refitMupTT.track().eta(), refitMupTT.track().phi() ));   
                      }                 
                   }
@@ -1507,7 +1630,6 @@ void B0KstMuMu::analyze (const edm::Event& iEvent, const edm::EventSetup& iSetup
                   {
                     if ( ClosestApp.distance() < 0.1 ) {
                       trkm_isopts.push_back( iTrackIso->track()->pt() );
-                      trkm_isomom.push_back( iTrackIso->track()->p()  );   
                       trkm_isodr.push_back ( deltaR(iTrackIso->track() ->eta(), iTrackIso->track()->phi(), refitTrkmTT.track().eta(), refitTrkmTT.track().phi() ));   
                     }                 
                   }
@@ -1516,7 +1638,6 @@ void B0KstMuMu::analyze (const edm::Event& iEvent, const edm::EventSetup& iSetup
                   {
                     if ( ClosestApp.distance() < 0.1 ) {
                       trkp_isopts.push_back( iTrackIso->track()->pt() );
-                      trkp_isomom.push_back( iTrackIso->track()->p()  );   
                       trkp_isodr.push_back ( deltaR(iTrackIso->track() ->eta(), iTrackIso->track()->phi(), refitTrkpTT.track().eta(), refitTrkpTT.track().phi() ));   
                     }                 
                   }
@@ -1535,10 +1656,6 @@ void B0KstMuMu::analyze (const edm::Event& iEvent, const edm::EventSetup& iSetup
                 NTuple->mupIsoPt       -> push_back(mup_isopts);
                 NTuple->kstTrkmIsoPt   -> push_back(trkm_isopts);
                 NTuple->kstTrkpIsoPt   -> push_back(trkp_isopts);
-                NTuple->mumIsoMom      -> push_back(mum_isomom);
-                NTuple->mupIsoMom      -> push_back(mup_isomom);
-                NTuple->kstTrkmIsoMom  -> push_back(trkm_isomom);
-                NTuple->kstTrkpIsoMom  -> push_back(trkp_isomom);
                 NTuple->mumIsodR       -> push_back(mum_isodr);
                 NTuple->mupIsodR       -> push_back(mup_isodr);
                 NTuple->kstTrkmIsodR   -> push_back(trkm_isodr);
@@ -1581,8 +1698,6 @@ void B0KstMuMu::analyze (const edm::Event& iEvent, const edm::EventSetup& iSetup
 	  } // End for mu-
 
 
-	NTuple->runN   = iEvent.id().run();
-	NTuple->eventN = iEvent.id().event();
     
     if (NTuple->nB > 0)
 	{
@@ -1607,9 +1722,6 @@ void B0KstMuMu::analyze (const edm::Event& iEvent, const edm::EventSetup& iSetup
 	}
       else if (printMsg) std::cout << __LINE__ << " : @@@ No B0 --> K*0 (K pi) mu+ mu- candidate were found in the event @@@" << std::endl;
     } // End if doGenReco_ == 1 || doGenReco_ == 2
-
-
-
 
 
   // ###########################################
@@ -1664,7 +1776,6 @@ void B0KstMuMu::analyze (const edm::Event& iEvent, const edm::EventSetup& iSetup
 	{
 	  const reco::Candidate* FirstPart = &(*genParticles)[itGen];
 
-
 	  // ##########################
 	  // # Check for:             #
 	  // # B0 / B0bar             #
@@ -1672,9 +1783,9 @@ void B0KstMuMu::analyze (const edm::Event& iEvent, const edm::EventSetup& iSetup
 	  // # Lambda_b / Lambda_bbar #
 	  // # B+ / B-                #
 	  // ##########################
-	  if ((abs(FirstPart->pdgId()) == 511) || (abs(FirstPart->pdgId()) == 531) || (abs(FirstPart->pdgId()) == 5122) || (abs(FirstPart->pdgId()) == 521))
+	  if ((abs(FirstPart->pdgId()) == 511) )
 	    {	     
-	      if (printMsg) std::cout << "\n" << __LINE__ << " : @@@ Found B0/B0bar OR Bs/Bsbar OR Lambda_b/Lambda_bbar OR B+/B- in MC @@@" << std::endl;
+	      if (printMsg) std::cout << "\n" << __LINE__ << " : @@@ Found B0/B0bar @@@" << std::endl;
 
 
 	      // ########################################################
@@ -1811,10 +1922,13 @@ void B0KstMuMu::analyze (const edm::Event& iEvent, const edm::EventSetup& iSetup
 
 
 	      bool foundSomething = false;
-	      if ((abs(FirstPart->pdgId()) == 511) && (isSignal == true) &&
-		  (((imum != -1) && (imup != -1) && (ikst != -1) && (ikst_trkm != -1) && (ikst_trkp != -1)) ||
-		   ((NTuple->genSignal != 1) && (NTuple->genSignal != 2) &&
-		    (ikst != -1) && (ikst_trkm != -1) && (ikst_trkp != -1) && (ipsi != -1) && (ipsi_mum != -1) && (ipsi_mup != -1))))
+// 	      if ((abs(FirstPart->pdgId()) == 511) && (isSignal == true) &&
+// 		       (((imum != -1) && (imup != -1) && (ikst != -1) && (ikst_trkm != -1) && (ikst_trkp != -1)) ))
+
+              if ((abs(FirstPart->pdgId()) == 511) && (isSignal == true) &&
+              	       (((imum != -1) && (imup != -1) && (ikst != -1) && (ikst_trkm != -1) && (ikst_trkp != -1)) ||
+              	       ((NTuple->genSignal != 1) && (NTuple->genSignal != 2) &&
+		         (ikst != -1) && (ikst_trkm != -1) && (ikst_trkp != -1) && (ipsi != -1) && (ipsi_mum != -1) && (ipsi_mup != -1))))
 		{
 		  // ################################################################
 		  // # Found Signal B0/B0bar --> K*0/K*0bar (K pi) mu+ mu-          #
@@ -1872,171 +1986,10 @@ void B0KstMuMu::analyze (const edm::Event& iEvent, const edm::EventSetup& iSetup
 
 		  foundSomething = true;
 		} // End if B0/B0bar signal
-	      else
-		{
-		  if (printMsg) std::cout << __LINE__ << " : @@@ Start particle decay-tree scan for opposite charged stable particles for background search @@@" << std::endl;
-		  searchForStableChargedDaughters (FirstPart, itGen, &posDau, &negDau);
 
-
-		  if ((NTuple->genSignal == 0) && (posDau.size() != 0) && (negDau.size() != 0))
-		    {
-		      // ###############################
-		      // # Search for Background from: #
-		      // # B0 / B0bar                  #
-		      // # Bs / Bsbar                  #
-		      // # Lambda_b / Lambda_bbar      #
-		      // # B+ / B-                     #
-		      // ###############################
-
-		      for (unsigned int i = 0; i < negDau.size(); i++)
-			{
-			  genMum = findDaughter (genParticles, &negDau, i);
-			  if (genMum->pdgId() == 13)
-			    {
-			      for (unsigned int j = 0; j < posDau.size(); j++)
-				{
-				  genMup = findDaughter (genParticles, &posDau, j);
-				  if (genMup->pdgId() == -13)
-				    {
-				      if (printMsg) std::cout << __LINE__ << " : found dimuons for possible background" << std::endl;
-				      foundSomething = true;
-				      break;
-				    }
-				}
-			      if (foundSomething == true) break;
-			    }
-			}
-
-		      if ((foundSomething == true) && (posDau.size() == 2) && (negDau.size() == 1))
-			{
-			  foundSomething = false;
-			  for (unsigned int i = 0; i < posDau.size(); i++)
-			    {
-			      genKst_trkp = findDaughter (genParticles, &posDau, i);
-			      if (genKst_trkp != genMup)
-				{
-				  NTuple->ClearMonteCarlo();
-
-				  NTuple->genMuMuBG = FirstPart->pdgId();
-				  NTuple->genMuMuBGnTrksp = 1;
-				  foundSomething = true;
-				  if (printMsg) std::cout << __LINE__ << " : get background positive track: " << genKst_trkp->pdgId() << "\tfrom mother: " << genKst_trkp->mother()->pdgId() << std::endl;
-				}
-			    }
-			}
-		      else if ((foundSomething == true) && (posDau.size() == 1) && (negDau.size() == 2))
-			{
-			  foundSomething = false;
-			  for (unsigned int i = 0; i < negDau.size(); i++)
-			    {
-			      genKst_trkm = findDaughter (genParticles, &negDau, i);
-			      if (genKst_trkm != genMum)
-				{
-				  NTuple->ClearMonteCarlo();
-
-				  NTuple->genMuMuBG = FirstPart->pdgId();			  
-				  NTuple->genMuMuBGnTrksm = 1;
-				  foundSomething = true;
-				  if (printMsg) std::cout << __LINE__ << " : get background negative track: " << genKst_trkm->pdgId() << "\tfrom mother: " << genKst_trkm->mother()->pdgId() << std::endl;
-				}
-			    }
-			}
-		      else if ((foundSomething == true) && (posDau.size() == 2) && (negDau.size() == 2))
-			{
-			  foundSomething = false;
-			  for (unsigned int i = 0; i < negDau.size(); i++)
-			    {
-			      genKst_trkm = findDaughter (genParticles, &negDau, i);
-			      if (genKst_trkm != genMum)
-				{
-				  for (unsigned int j = 0; j < posDau.size(); j++)
-				    {
-				      genKst_trkp = findDaughter (genParticles, &posDau, j);
-				      if (genKst_trkp != genMup)
-					{
-					  NTuple->ClearMonteCarlo();
-
-					  NTuple->genMuMuBG = FirstPart->pdgId();
-					  NTuple->genMuMuBGnTrksp = 1;
-					  NTuple->genMuMuBGnTrksm = 1;
-					  foundSomething = true;
-					  if (printMsg)
-					    {
-					      std::cout << __LINE__ << " : get background negative track: " << genKst_trkm->pdgId() << "\tfrom mother: " << genKst_trkm->mother()->pdgId();
-					      std::cout << "\tand positive track: " << genKst_trkp->pdgId() << "\tfrom mother: " << genKst_trkp->mother()->pdgId() << std::endl;
-					    }
-					}
-				    }
-				}
-			    }
-			}
-		      else if ((foundSomething == true) && (posDau.size() >= 2) && (negDau.size() >= 2))
-			{
-			  foundSomething = false;
-
-			  double bestMass = 0.;
-			  unsigned int negDauIndx = 0;
-			  unsigned int posDauIndx = 0;
-
-			  for (unsigned int i = 0; i < negDau.size(); i++)
-			    {
-			      genKst_trkm = findDaughter (genParticles, &negDau, i);
-			      if (genKst_trkm != genMum)
-				{
-				  for (unsigned int j = 0; j < posDau.size(); j++)
-				    {
-				      genKst_trkp = findDaughter (genParticles, &posDau, j);
-				      if (genKst_trkp != genMup)
-					{
-					  double invMass = Utility->computeInvMass (genKst_trkm->px(),genKst_trkm->py(),genKst_trkm->pz(),genKst_trkm->mass(),
-										    genKst_trkp->px(),genKst_trkp->py(),genKst_trkp->pz(),genKst_trkp->mass());
-				      
-					  if (fabs(invMass - Utility->kstMass) < fabs(bestMass - Utility->kstMass))
-					    {
-					      bestMass = invMass;
-					      negDauIndx = i;
-					      posDauIndx = j;
-					    }
-					}
-				    }
-				}
-			    }
-
-			  if (bestMass > 0.)
-			    {
-			      genKst_trkm = findDaughter (genParticles, &negDau, negDauIndx);
-			      genKst_trkp = findDaughter (genParticles, &posDau, posDauIndx);
-
-			      NTuple->ClearMonteCarlo();
-
-			      NTuple->genMuMuBG = FirstPart->pdgId();
-			      NTuple->genMuMuBGnTrksp = 1;
-			      NTuple->genMuMuBGnTrksm = 1;
-			      foundSomething = true;
-			      if (printMsg)
-				{
-				  std::cout << __LINE__ << " : get background negative track: " << genKst_trkm->pdgId() << "\tfrom mother: " << genKst_trkm->mother()->pdgId();
-				  std::cout << "\tand positive track: " << genKst_trkp->pdgId() << "\tfrom mother: " << genKst_trkp->mother()->pdgId() << std::endl;
-				}
-			    }
-			}
-		      else
-			{
-			  foundSomething = false;
-			  if (printMsg) std::cout << __LINE__ << " : @@@ No background found @@@" << std::endl;
-			}
-		    }
-		  else if (printMsg) std::cout << __LINE__ << " : @@@ No possible background found @@@" << std::endl;
-		} // End else background
-
-
-	      // ########################
-	      // # Save gen information #
-	      // ########################
 	      if (foundSomething == true)
 		{
 		  if (printMsg) std::cout << __LINE__ << " : @@@ Saving signal OR background compatible with signal @@@" << std::endl;
-
 
 		  // #############################
 		  // # Search for primary vertex #
@@ -2044,15 +1997,17 @@ void B0KstMuMu::analyze (const edm::Event& iEvent, const edm::EventSetup& iSetup
 		  const reco::Candidate* PVtx = FirstPart;
 		  while (PVtx->numberOfMothers() > 0) PVtx = PVtx->mother(0);
 
-
 		  // ############################
 		  // # Generated Primary Vertex #
 		  // ############################
 		  NTuple->genPriVtxX = PVtx->vx();
 		  NTuple->genPriVtxY = PVtx->vy();
 		  NTuple->genPriVtxZ = PVtx->vz();
-
 		  
+		  if (printMsg) std::cout << __LINE__ << " :Filling with :"  << NTuple->genSignal  << std::endl;
+		  if (printMsg) std::cout << FirstPart->px() << std::endl;
+		  if (printMsg) std::cout << FirstPart->py() << std::endl;
+		  if (printMsg) std::cout << FirstPart->pz() << std::endl;
 		  // #####################
 		  // # Generated B0 Mass #
 		  // #####################
@@ -2061,14 +2016,12 @@ void B0KstMuMu::analyze (const edm::Event& iEvent, const edm::EventSetup& iSetup
 		  NTuple->genB0Py = FirstPart->py();
 		  NTuple->genB0Pz = FirstPart->pz();
 
-
 		  // ####################
 		  // # Generated B0 Vtx #
 		  // ####################
 		  NTuple->genB0VtxX = FirstPart->vx();
 		  NTuple->genB0VtxY = FirstPart->vy();
 		  NTuple->genB0VtxZ = FirstPart->vz();
-		  
 	
 		  if (NTuple->genSignal != 0)
 		    {
@@ -2078,8 +2031,7 @@ void B0KstMuMu::analyze (const edm::Event& iEvent, const edm::EventSetup& iSetup
 		      NTuple->genKstMass = genKst->mass();
 		      NTuple->genKstPx = genKst->px();
 		      NTuple->genKstPy = genKst->py();
-		      NTuple->genKstPz = genKst->pz();
-		      
+		      NTuple->genKstPz = genKst->pz();	      
 
 		      // #####################
 		      // # Generated K*0 Vtx #
@@ -2184,63 +2136,9 @@ void B0KstMuMu::analyze (const edm::Event& iEvent, const edm::EventSetup& iSetup
 		      NTuple->genKstTrkpPz = genKst_trkp->pz();
 		    }
 		} // End if foundSomething
-	    } // End if B0/B0bar OR Bs/Bsbar OR Lambda_b/Lambda_bbar OR B+/B-
+	} // End if B0/B0bar OR Bs/Bsbar OR Lambda_b/Lambda_bbar OR B+/B-
 
 
-	  // ##############################################
-	  // # Check to see if J/psi or psi(2S) is prompt #
-	  // ##############################################
-	  bool isPrompt = false;
-	  const reco::Candidate& PsiCand = (*genParticles)[itGen];
-	  
-	  if ((abs(PsiCand.pdgId()) == 443) || (abs(PsiCand.pdgId()) == 100443))
-	    {
-	      isPrompt = true;
-
-	      for (unsigned int i = 0; i < PsiCand.numberOfMothers(); i++)
-		{
-		  const reco::Candidate* psiMom = PsiCand.mother(i);
-		  
-		  if (((abs(psiMom->pdgId()) < 600) && (abs(psiMom->pdgId()) > 500)) || ((abs(psiMom->pdgId()) < 6000) && (abs(psiMom->pdgId()) > 5000)))
-		    {
-		      isPrompt = false;
-		      continue;
-		    }
-		  else
-		    {
-		      for (unsigned int i = 0; i < psiMom->numberOfMothers(); i++)
-			{
-			  const reco::Candidate* psiMom2 = psiMom->mother(i);
-
-			  if (((abs(psiMom2->pdgId()) < 600) && (abs(psiMom2->pdgId()) > 500)) || ((abs(psiMom2->pdgId()) < 6000) && (abs(psiMom2->pdgId()) > 5000)))
-			    {
-			      isPrompt = false;
-			      continue;
-			    }
-			  else
-			    {
-			      for (unsigned int i = 0; i < psiMom2->numberOfMothers(); i++)
-				{
-				  const reco::Candidate* psiMom3 = psiMom2->mother(i);
-
-				  if (((abs(psiMom3->pdgId()) < 600) && (abs(psiMom3->pdgId()) > 500)) || ((abs(psiMom3->pdgId()) < 6000) && (abs(psiMom3->pdgId()) > 5000)))
-				    {
-				      isPrompt = false;
-				      continue;
-				    }
-				}
-			    }
-			}
-		    }
-		}
-	      
-	      if (isPrompt == true)
-		{
-		  NTuple->genPsiPrompt = 1;
-		  if (printMsg) std::cout << __LINE__ << " : found prompt J/psi or psi(2S)" << std::endl;
-		}
-	      continue;
-	    }
 
 	  for (unsigned int i = 0; i < posDau.size(); i++)
 	    {
@@ -2366,7 +2264,9 @@ void B0KstMuMu::analyze (const edm::Event& iEvent, const edm::EventSetup& iSetup
   // ###################
   // # Fill the ntuple #
   // ###################
-  if (printMsg) std::cout << __LINE__ << " : @@@ Filling the tree @@@" << std::endl;
+  if (printMsg) std::cout << __LINE__ << " : @@@ Filling the tree for event @@@" << std::endl;
+  if (printMsg) std::cout << iEvent.id().event() << std::endl;
+  
   theTree->Fill();
   NTuple->ClearNTuple();
 }
