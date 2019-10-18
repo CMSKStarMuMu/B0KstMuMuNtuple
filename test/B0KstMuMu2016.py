@@ -24,7 +24,7 @@ import FWCore.ParameterSet.Config as cms
 process = cms.Process('B0KSTMUMUNTUPLIZER')
 
 process.load('FWCore.MessageLogger.MessageLogger_cfi')
-process.load('Configuration.Geometry.GeometryIdeal_cff')
+process.load('Configuration.StandardSequences.GeometryDB_cff')
 process.load('Configuration.StandardSequences.MagneticField_cff')
 process.load('Configuration.StandardSequences.FrontierConditions_GlobalTag_cff')
 process.MessageLogger.suppressWarning = cms.untracked.vstring('B0KstMuMu')
@@ -216,6 +216,7 @@ process.B0KstMuMu = cms.EDAnalyzer('B0KstMuMu',
                                    MuonType         = cms.untracked.InputTag('cleanPatMuonsTriggerMatch'),
                                    TrackType        = cms.untracked.InputTag('cleanPatTrackCandsTriggerMatch'),
                                    TriggerResult    = cms.untracked.InputTag("TriggerResults::HLT"),
+                                   l1results        = cms.InputTag("gtStage2Digis"),
                                    PuInfoTag        = cms.untracked.InputTag("addPileupInfo"),
                                    GenFilterTag     = cms.untracked.InputTag("genFilterEfficiencyProducer"),
                                    doGenReco        = cms.untracked.uint32(runDataMC),
@@ -223,6 +224,13 @@ process.B0KstMuMu = cms.EDAnalyzer('B0KstMuMu',
                                                                   "HLT_DoubleMu4_JpsiTrk_Displaced_v",
                                                                   "HLT_DoubleMu4_PsiPrimeTrk_Displaced_v"
                                                                   ),
+                                   L1Names  = cms.vstring("L1_DoubleMu_11_4", 
+                                                          "L1_DoubleMu_12_5",
+                                                          "L1_DoubleMu_10_0_dEta_Max1p8",
+                                                          "L1_DoubleMu0er1p6_dEta_Max1p8", 
+                                                          "L1_DoubleMu0er1p6_dEta_Max1p8_OS",
+                                                          "L1_DoubleMu0er1p4_dEta_Max1p8_OS", ### -> should be added for the next round if any
+                                                   ),
                                    ## HLT selections
                                    MuMuVtxCL        = cms.untracked.double(0.1),    # mu-mu Vtx CL [0.1]             
                                    MuMuLsBS         = cms.untracked.double(3.0),    # mu-mu L/sigma w/respect to BS [3.0]    
@@ -240,7 +248,7 @@ process.B0KstMuMu = cms.EDAnalyzer('B0KstMuMu',
                                    B0VtxCL          = cms.untracked.double(0.01),   # B0 Vtx CL [0.01]
                                    KstMass          = cms.untracked.double(3.0),    # K*0 (OR K*0bar) mass window sigma [3.0]
                                    HadDCASBS        = cms.untracked.double(0.8),    # hadron DCA/sigma w/respect to BS [0.8] (also in HLT, now is 2) 
-                                   HadpT            = cms.untracked.double(0.8),    # hadron min pT [0.8 GeV/c] (also in HLT)
+                                   HadpT            = cms.untracked.double(0.8),    ####   # hadron min pT [0.8 GeV/c] (also in HLT)
                                    MaxB0RoughMass   = cms.untracked.double(25.),    # B0 mass upper limit  before performing the fit
                                    
                                    printMsg         = cms.untracked.bool(printMsg))
